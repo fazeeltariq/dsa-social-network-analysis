@@ -1,11 +1,27 @@
-#include<iostream>
-#include <unordered_map>
-#include <queue>
-#include <stack>
-#include <set>
-#include <unordered_set>
+#include <bits/stdc++.h>
 #include <algorithm>
+#include <fstream>
+#include <chrono>
+#include <random>
+#include <vector>
+#include <iomanip>
+#include <exception>
 using namespace std;
+
+
+class UserNotFoundException : public std::exception {
+public:
+    const char* what() const noexcept override {
+        return "Error: User not found!";
+    }
+};
+
+class FriendAlreadyExistsException : public std::exception {
+public:
+    const char* what() const noexcept override {
+        return "Error: Friend already exists!";
+    }
+};
 
 
 // ADTS implemented
@@ -19,8 +35,7 @@ public:
     }
 };
 
-class Stack
-{
+class Stack {
 public:
     Node *top;
     Stack()
@@ -131,15 +146,15 @@ public:
         status = false;
     }
     // getters
-    string getName () {
+    string getName () const {
         return name;
     }
 
-    int getAge() {
+    int getAge() const {
         return age;
     }
 
-    bool getStatus() {
+    bool getStatus() const {
         return status;
     }
 
@@ -172,12 +187,13 @@ public:
     }
 
     void sortfriends () {
-        quickSort(friends,0,friends.size() - 1);
+        if (friends.size() > 1)
+            quickSort(friends,0,(int)friends.size() - 1);
     }
 
     bool findFriend (string name) {
         sortfriends ();
-        int st = 0, end = friends.size();
+        int st = 0, end = (int)friends.size() - 1;
 
         while (st <= end)
         {
@@ -206,7 +222,7 @@ public:
             cout << "Friend " << friendname << " added.\n";
         } 
         else {
-            cout << "Already a friend.\n";
+            cout << "\nAlready a friend ";
         }
     }
 
@@ -223,7 +239,7 @@ public:
         }
     }
 
-    void showfriends () {
+    void showfriends () const {
         // checking if a person has no freinds.
         if (friends.empty()) {
             cout << "No friends yet.";
@@ -231,7 +247,7 @@ public:
         }     
         cout << "Friends of " << name << ": ";
 
-        for(string &f: friends) {
+        for(const string &f: friends) {
             cout << f << " ";
         }
         cout << "\n";
@@ -244,16 +260,16 @@ public:
 
     void receiveMessage (User &sender, string message) {
         inbox.push_back ({sender.getName(),message});
-        cout << "Message receive from " << sender.getName();
+        cout << "Message receive from " << sender.getName() << endl;
     }
 
-    void showInbox () {
+    void showInbox () const {
         cout << "\nInbox of " << name << ":\n";
         // check if inbox is empty
         if (inbox.empty()) 
             cout << "No messages yet.\n";
         else {
-            for(auto &it : inbox) {
+            for(const auto &it : inbox) {
                 cout << it.first << " => " << it.second << endl;
             }
         }
@@ -262,21 +278,30 @@ public:
     const vector<string>& getFriends() const {
         return friends;
     }
+
+    const vector<pair<string,string>>& getInbox() const {
+        return inbox;
+    }
+
+    void pushInbox(const pair<string,string>& msg) {
+        inbox.push_back(msg);
+    }
 };
 
 class SocialNetwork {
 private:
     unordered_map <string,User> users;     // {name,connections}
+
 public:
 
-    bool UserExists (string name) {                // unodered maps provide O(1) searching
-        // checking if user exists by name 
-        if (users.find (name) != users.end()) {
-            return true;
-        }
-        else {
-            return false;
-        }
+    SocialNetwork() {}
+
+    bool UserExists (const string &name) {                // unodered maps provide O(1) searching
+        return users.find (name) != users.end();
+    }
+
+    string escapeCommas(const string &s) {
+        return s;
     }
 
     User& getUser (string name) {
@@ -284,24 +309,25 @@ public:
     }
 
     void addUser (string name, int age) {
-        // checking if user already exist.
         if (UserExists(name)) {
             cout << "User already exists.\n";
             return;
         }
         users[name] = User(name, age);
         cout << "User " << name << " added successfully.\n";
+        saveToFile();
     }
 
     void addConnection (string u, string v) {
         if (!UserExists(u) || !UserExists(v)) {
-            cout << "One or both users not found.\n";
+            throw UserNotFoundException();
             return;
         }
         users[u].addfriend (v);
         users[v].addfriend (u);
 
-        cout << "\nConnection added between users: " << u << " and " << v;
+        cout << "\nConnection added between users: " << u << " and " << v << "\n";
+        saveToFile();
     }
 
     void showfreinds (string name) {
@@ -320,11 +346,14 @@ public:
         }
         return false;
     }
-    // bfs 
-    bool isConnected (string u, string v) {
-        // check using BFS traversal
-        queue<string> q;
 
+    // BFS with timing print
+    bool isConnected (string u, string v) {
+        if (!UserExists(u) || !UserExists(v)) {
+            return false;
+        }
+
+        queue<string> q;
         unordered_map<string,bool> visited;   // {name,true}
         visited[u] = true;
         q.push(u);
@@ -334,7 +363,9 @@ public:
             string current = q.front();
             q.pop();
 
-            if(current == v) return true;
+            if(current == v) {
+                return true;
+            }
 
             for (auto &it: users[current].getFriends()) {
                 if (!visited[it]) {
@@ -345,6 +376,7 @@ public:
         }
         return false;
     }
+
     // DFS using recursion
     void DFS_helper (string u , unordered_map<string,bool> &visited) {
         cout << u << " ";
@@ -379,15 +411,16 @@ public:
       if (!UserExists(sender) || !UserExists(receiver)) {
         cout << "\nUser does not exist.\n";
         return;
-    }
-        users[receiver].receiveMessage(users[sender], message);
+      }
+      users[sender].sendMessage(users[receiver], message);
+      saveToFile();
     }
 
     void showInbox(string username) {
-    if (!UserExists(username)) {
-        cout << "User not found.\n";
-        return;
-    }
+        if (!UserExists(username)) {
+            cout << "User not found.\n";
+            return;
+        }
         users[username].showInbox();
     }
 
@@ -427,7 +460,6 @@ public:
     }
 
     void shortestPath(string source, string destination) {
-        // exceptional handling
         if (!UserExists(source) || !UserExists(destination)) {
             cout << "One or both users not found.\n";
             return;
@@ -451,22 +483,22 @@ public:
                 break;
             }
 
-        for (auto &friendName : users[current].getFriends()) {
-            if (!visited[friendName]) {
-                visited[friendName] = true;
-                parent[friendName] = current;
-                q.push(friendName);
+            for (auto &friendName : users[current].getFriends()) {
+                if (!visited[friendName]) {
+                    visited[friendName] = true;
+                    parent[friendName] = current;
+                    q.push(friendName);
+                }
             }
         }
-    }
+    
+        if (!found) {
+            cout << "No path exists between " << source << " and " << destination << ".\n";
+            return;
+        }
 
-    if (!found) {
-        cout << "No path exists between " << source << " and " << destination << ".\n";
-        return;
-    }
-
-    vector<string> path;    // to store path
-    string current = destination;
+        vector<string> path;    // to store path
+        string current = destination;
         while (current != source) {
             path.push_back(current);
             current = parent[current];
@@ -527,13 +559,13 @@ public:
             return commons;
         }
 
-    // Get friends of both users
+        // Get friends of both users
         const auto &friends1 = users[user1].getFriends();
         unordered_set<string> directFriends(friends1.begin(), friends1.end());
 
         unordered_set<string> friends2(users[user2].getFriends().begin(), users[user2].getFriends().end());
 
-    // Find intersection
+        // Find intersection
         for (const string &f : directFriends) {
             if (friends2.find(f) != friends2.end()) {
                 commons.push_back(f);
@@ -541,9 +573,170 @@ public:
         }
         return commons;
     }
+
+    void autoGenerate(int N) {
+        users.clear();
+        for (int i = 0; i < N; ++i) {
+            string name = "U" + to_string(i);
+            users[name] = User(name, 18 + (i % 10));
+        }
+        if (N <= 1) return;
+        random_device rd;
+        mt19937 gen(rd());
+        uniform_int_distribution<> dist(0, N-1);
+       
+        int E = 2 * N;
+        for (int i = 0; i < E; ++i) {
+            int a = dist(gen), b = dist(gen);
+            if (a == b) continue;
+            string A = "U" + to_string(a), B = "U" + to_string(b);
+            // add both directions
+            users[A].addfriend(B);
+            users[B].addfriend(A);
+        }
+    }
+
+    void saveToFile(const string &filename = "social_data.txt") {
+        ofstream out(filename);
+        if (!out) {
+            cout << "Error opening file for writing!\n";
+            return;
+        }
+
+        for (auto &p : users) {
+            const string &username = p.first;
+            out << "USER," << username << "," << p.second.getAge();
+            const auto &fr = p.second.getFriends();
+            for (const auto &f : fr) {
+                out << "," << f;
+            }
+            out << "\n";
+        }
+        for (auto &p : users) {
+            const string &username = p.first;
+            const auto &inb = p.second.getInbox();
+            for (const auto &m : inb) {
+                out << "MSG," << m.first << "," << username << "," << m.second << "\n";
+            }
+        }
+
+        out.close();
+    }
+
+    void loadFromFile(const string &filename = "social_data.txt") {
+    ifstream in(filename);
+    if (!in) {
+        cout << "No saved file found. Starting fresh.\n";
+        return;
+    }
+
+    users.clear();
+    string line;
+    vector<pair<string, vector<string>>> pendingFriends;
+    vector<tuple<string,string,string>> pendingMessages; // sender, receiver, message
+
+    while (getline(in, line)) {
+        if (line.empty()) continue;
+
+        vector<string> tokens;
+        string token;
+
+        for (size_t i = 0; i < line.size(); ++i) {
+            if (line[i] == ',') {
+                tokens.push_back(token);
+                token.clear();
+            } else {
+                token.push_back(line[i]);
+            }
+        }
+        tokens.push_back(token);
+
+        if (tokens.size() == 0) continue;
+
+        if (tokens[0] == "USER") {
+            if (tokens.size() >= 3) {
+                string username = tokens[1];
+                int age = 0;
+                try { age = stoi(tokens[2]); } catch (...) { age = 0; }
+
+                users[username] = User(username, age);
+
+                vector<string> friendsList;
+                for (size_t k = 3; k < tokens.size(); ++k) {
+                    if (!tokens[k].empty())
+                        friendsList.push_back(tokens[k]);
+                }
+
+                if (!friendsList.empty())
+                    pendingFriends.push_back({username, friendsList});
+            }
+        }
+        else if (tokens[0] == "MSG") {
+            if (tokens.size() >= 4) {
+                string sender = tokens[1];
+                string receiver = tokens[2];
+
+                string msg;
+                for (size_t k = 3; k < tokens.size(); ++k) {
+                    if (k > 3) msg.push_back(',');
+                    msg += tokens[k];
+                }
+
+                pendingMessages.push_back({sender, receiver, msg});
+            }
+        }
+    }
+    for (auto &p : pendingFriends) {
+        const string &username = p.first;
+        for (const auto &f : p.second) {
+            if (UserExists(f) && UserExists(username)) {
+                users[username].addfriend(f);
+            }
+        }
+    }
+
+    for (auto &p : users) {
+        string u = p.first;
+
+        for (auto &v : p.second.getFriends()) {
+            if (UserExists(v)) {
+                const auto &friendsV = users[v].getFriends();
+
+                if (find(friendsV.begin(), friendsV.end(), u) == friendsV.end()) {
+                    users[v].addfriend(u);
+                }
+            }
+        }
+    }
+
+    for (auto &t : pendingMessages) {
+        string sender = get<0>(t);
+        string receiver = get<1>(t);
+        string msg = get<2>(t);
+
+        if (UserExists(sender) && UserExists(receiver)) {
+            users[receiver].receiveMessage(users[sender], msg);
+        }
+    }
+
+    in.close();
+    cout << "Data loaded successfully.\n";
+}
+
 };
 
-// funcion to check integer
+
+
+template<typename Func>
+long long measureMicroseconds(Func f) {
+    auto start = chrono::high_resolution_clock::now();
+    f();
+    auto end = chrono::high_resolution_clock::now();
+    return chrono::duration_cast<chrono::microseconds>(end - start).count();
+}
+
+
+
 bool isValidUsername(const string &name) {
     return !name.empty() && name.length() <= 20;
 }
@@ -583,10 +776,11 @@ int getValidAge() {
     return age;
 }
 
-
 int main()
 {
     SocialNetwork sn;
+    sn.loadFromFile();
+
     int choice;
     string u, v, msg;
     int age;
@@ -605,7 +799,8 @@ int main()
         cout << "\n10. Detect Cycle ";
         cout << "\n11. Suggest friends ";
         cout << "\n12. Common freinds ";
-        cout << "\n13. Exit\n";
+        cout << "\n13. Show Time";
+        cout << "\n14. Exit\n";
        
         cout << "Enter your choice: ";
         choice = getSafeInt();
@@ -619,13 +814,20 @@ int main()
         }
         else if (choice == 2) {
             cout << "Enter first username: ";
-            // cin >> u;
             u = getValidUsername(); 
             cout << "Enter second username: ";
-            // cin >> v;
             v = getValidUsername(); 
-            sn.addConnection(u, v);
+            try {
+                sn.addConnection(u, v);
+            }
+            catch (FriendAlreadyExistsException &e) {
+                cout << e.what() << endl;
+            }
+            catch (UserNotFoundException &e) {
+                cout << e.what() << endl;
+            }
         }
+
         else if (choice == 3) {
             cout << "Enter username: ";
             u = getValidUsername();
@@ -673,10 +875,10 @@ int main()
         }
         else if (choice == 10) {
             if (sn.detectCycle()) {
-                cout << "\nCycle exist in network "; 
+                cout << "\nCycle exist in network \n"; 
             }
             else {
-                cout << "\nCycle does not exist ";
+                cout << "\nCycle does not exist \n";
             }
         }
         else if (choice == 11) {
@@ -721,10 +923,70 @@ int main()
             cout << endl;
         }
         }
-        else if (choice == 13) {
+       
+
+#include <iomanip> 
+
+else if (choice == 13) {
+    cout << "\n========================================================\n";
+    cout << "         PERFORMANCE TESTING - TIME COMPLEXITY          \n";
+    cout << "            (Time measured in microseconds)             \n";
+    cout << "========================================================\n\n";
+    
+    vector<int> testSizes = {10, 50, 1000, 5000, 10000};
+    
+    // Table header
+    cout << "+---------+-----------+-----------+-----------+-----------+------------+------------+-------------+\n";
+    cout << "| Users(N)|    BFS    | BFS Ratio |    DFS    | DFS Ratio |  SP Path   |  Suggest   |   Common    |\n";
+    cout << "+---------+-----------+-----------+-----------+-----------+------------+------------+-------------+\n";
+    
+    long long prevBfsTime = 0;
+    long long prevDfsTime = 0;
+
+    for (int N : testSizes) {
+        sn.autoGenerate(N);
+        string A = "U0";
+        string B = "U" + to_string(max(0, N-1));
+        
+        long long bfsTime = measureMicroseconds([&](){ sn.isConnected(A, B); });
+        long long dfsTime = measureMicroseconds([&](){ sn.find_communities(); });
+        long long spTime  = measureMicroseconds([&](){ sn.shortestPath(A, B); });
+        long long sugTime = measureMicroseconds([&](){ sn.suggestFriends(A, 10); });
+        long long comTime = measureMicroseconds([&](){ sn.commonFriends(A, B); });
+        
+        double bfsRatio = prevBfsTime == 0 ? 0 : (double)bfsTime / prevBfsTime;
+        double dfsRatio = prevDfsTime == 0 ? 0 : (double)dfsTime / prevDfsTime;
+        prevBfsTime = bfsTime;
+        prevDfsTime = dfsTime;
+        
+        // Print row
+        cout << "| " << setw(7) << N << " | ";
+        cout << setw(9) << bfsTime << " | ";
+        if (bfsRatio == 0) cout << setw(9) << "-";
+        else cout << setw(9) << fixed << setprecision(2) << bfsRatio;
+        cout << " | ";
+        cout << setw(9) << dfsTime << " | ";
+        if (dfsRatio == 0) cout << setw(9) << "-";
+        else cout << setw(9) << fixed << setprecision(2) << dfsRatio;
+        cout << " | ";
+        cout << setw(10) << spTime << " | ";
+        cout << setw(10) << sugTime << " | ";
+        cout << setw(11) << comTime << " |\n";
+    }
+    
+    cout << "+---------+-----------+-----------+-----------+-----------+------------+------------+-------------+\n";
+    cout << "\nNOTE: V = Vertices (users), E = Edges (friendships)\n";
+    cout << "      Times may vary based on system load and graph structure\n";
+    cout << "\n========================================================\n";
+    cout << "           PERFORMANCE TEST COMPLETED                   \n";
+    cout << "========================================================\n";
+}
+
+        else if (choice == 14) {
             cout << "Exiting...\n";
             break;
         }
+        
         else {
             cout << "Invalid choice.\n";
         }
